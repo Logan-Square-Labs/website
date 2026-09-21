@@ -38,10 +38,14 @@ python3 -m http.server 8000 --directory public
 
 [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) is connected
 to this repository, so pushes to `main` deploy to production and pushes to other
-branches upload a preview version. The configured commands are:
+branches upload a preview version. The build settings must be:
 
 - Build command: `echo "No build command needed"` (there is nothing to build)
 - Deploy command: `npx wrangler deploy`
+
+A deploy command that does not invoke wrangler will still report the build as
+successful while deploying nothing, so check here first if a push appears to have no
+effect on the live site.
 
 To deploy by hand instead, run `npx wrangler@latest deploy`. That needs a Cloudflare API
 token with the **Workers Scripts: Edit** permission, either from `wrangler login` or via
