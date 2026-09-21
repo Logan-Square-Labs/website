@@ -38,14 +38,17 @@ python3 -m http.server 8000 --directory public
 
 [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) is connected
 to this repository, so pushes to `main` deploy to production and pushes to other
-branches upload a preview version. The build settings must be:
+branches upload a preview version. Three separate command fields under **Settings →
+Builds** control that, and they must be:
 
 - Build command: `echo "No build command needed"` (there is nothing to build)
-- Deploy command: `npx wrangler deploy`
+- Deploy command: `npx wrangler deploy` — runs on `main` only
+- Version command: `npx wrangler versions upload` — runs on every other branch
 
-A deploy command that does not invoke wrangler will still report the build as
-successful while deploying nothing, so check here first if a push appears to have no
-effect on the live site.
+The two wrangler commands are easy to confuse. A correct version command with a deploy
+command that does not invoke wrangler produces exactly one symptom: branch builds look
+healthy while merges to `main` report success and deploy nothing. Check these fields
+first if a push appears to have no effect on the live site.
 
 To deploy by hand instead, run `npx wrangler@latest deploy`. That needs a Cloudflare API
 token with the **Workers Scripts: Edit** permission, either from `wrangler login` or via
