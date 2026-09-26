@@ -17,8 +17,8 @@ public/              # static assets
   _headers           # security + caching headers
   robots.txt
   sitemap.xml
-src/                 # Worker: chart page, aggregate, R2 queue consumer
-wrangler.jsonc       # assets, datasets bucket, queue, Durable Object
+src/                 # Worker: chart page and R2 queue consumer
+wrangler.jsonc       # assets, datasets bucket, queue
 ```
 
 ## Gameplay chart
@@ -34,13 +34,23 @@ When the matching `*.actions.jsonl` meta includes `fps`, the bars are seconds
 frames so the unit stays one thing. The axis label is "Seconds recorded" or
 "Frames recorded".
 
+The totals the chart shows are one JSON object, `website/super-mario-land-gameplay.json`,
+in the same bucket. That key is outside `raw/skyemu/`. `/gameplay/` and
+`/api/gameplay` read the object and render it. They do not scan recordings.
+
 New objects under `raw/skyemu/` publish an R2 `object-create` notification to the
-`website-sml-coverage` queue. The Worker reads the object, stores that object's
-contribution, and adds the difference from its previous contribution. Processing
-the same object again (same etag) does not change the totals. A later upload of
-the same key replaces the old contribution. A cron every five minutes walks the
-prefix for recordings that are already in the bucket or whose notification was
-missed; that pass uses the same replace rules.
+`website-sml-coverage` queue. The consumer (one at a time) decodes a Super Mario
+Land RAM object and read-modify-writes the JSON, keeping each object's etag so a
+retry or a second delivery does not add it again. A later upload of the same key
+replaces the old contribution. Super Mario Land 2 is ignored. Writing the JSON
+does not match the `raw/skyemu/` notification, so the update cannot loop.
+
+Recordings already in the bucket are tallied once, not by a cron:
+
+```sh
+CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... \
+  npx tsx scripts/seed-gameplay-coverage.ts
+```
 
 The open page polls `/api/gameplay` and updates the bars without a reload.
 
@@ -55,7 +65,5 @@ npx wrangler r2 bucket notification create datasets \
   --prefix raw/skyemu/
 ```
 
-Local development uses simulated R2 and does not emit bucket notifications. Put
-objects in the local `datasets` bucket and run the scheduled backfill
-(`wrangler dev --test-scheduled`, then `GET /__scheduled`) to exercise the same
-aggregate the queue consumer updates.
+Local development uses simulated R2 and does not emit bucket notifications. The
+worker tests put a recording in the local bucket and run the queue consumer.

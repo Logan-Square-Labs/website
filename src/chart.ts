@@ -1,4 +1,10 @@
-import { emptyFrames, WORLD_LEVELS, type Frames, type WorldLevel } from "./ram";
+import {
+  emptyFrames,
+  isSuperMarioLandRamKey,
+  WORLD_LEVELS,
+  type Frames,
+  type WorldLevel,
+} from "./ram";
 
 export type Contribution = {
   etag: string;
@@ -111,6 +117,117 @@ export function applyContribution(
   if (next) add(next);
 
   return { frames, durationMs, untimedObjects, updatedAt };
+}
+
+export type CoverageDocument = {
+  version: 1;
+  game: PublicChart["game"];
+  unit: PublicChart["unit"];
+  unitLabel: PublicChart["unitLabel"];
+  updatedAt: string | null;
+  levels: LevelBar[];
+  objects: Record<string, Contribution>;
+};
+
+export function emptyDocument(): CoverageDocument {
+  return documentFromObjects({}, null);
+}
+
+export function applyUpload(
+  doc: CoverageDocument,
+  key: string,
+  next: Contribution | null,
+  updatedAt: string,
+): CoverageDocument {
+  if (!isSuperMarioLandRamKey(key)) return doc;
+  const previous = doc.objects[key] ?? null;
+  if (next) {
+    if (!shouldReplace(previous, next)) return doc;
+  } else if (!previous) {
+    return doc;
+  }
+  const objects: Record<string, Contribution> = {};
+  for (const objectKey of Object.keys(doc.objects)) {
+    if (objectKey !== key) objects[objectKey] = doc.objects[objectKey];
+  }
+  if (next) objects[key] = next;
+  return documentFromObjects(objects, updatedAt);
+}
+
+export function parseCoverageDocument(value: unknown): CoverageDocument | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (record.version !== 1 || record.game !== "super_mario_land") return null;
+  if (record.unit !== "seconds" && record.unit !== "frames") return null;
+  const unitLabel = record.unit === "seconds" ? "Seconds recorded" : "Frames recorded";
+  if (record.unitLabel !== unitLabel) return null;
+  if (record.updatedAt !== null && typeof record.updatedAt !== "string") return null;
+  if (!Array.isArray(record.levels) || record.levels.length !== WORLD_LEVELS.length) return null;
+  const levels: LevelBar[] = [];
+  for (let index = 0; index < WORLD_LEVELS.length; index += 1) {
+    const level = record.levels[index];
+    if (!level || typeof level !== "object") return null;
+    const bar = level as Partial<LevelBar>;
+    if (bar.level !== WORLD_LEVELS[index]) return null;
+    if (typeof bar.value !== "number" || !Number.isFinite(bar.value)) return null;
+    if (typeof bar.label !== "string") return null;
+    levels.push({ level: bar.level, value: bar.value, label: bar.label });
+  }
+  if (!record.objects || typeof record.objects !== "object" || Array.isArray(record.objects)) {
+    return null;
+  }
+  const objects: Record<string, Contribution> = {};
+  for (const [key, entry] of Object.entries(record.objects)) {
+    const contribution = parseContribution(entry);
+    if (!contribution) return null;
+    objects[key] = contribution;
+  }
+  return {
+    version: 1,
+    game: "super_mario_land",
+    unit: record.unit,
+    unitLabel,
+    updatedAt: record.updatedAt,
+    levels,
+    objects,
+  };
+}
+
+function documentFromObjects(
+  objects: Record<string, Contribution>,
+  updatedAt: string | null,
+): CoverageDocument {
+  const sorted: Record<string, Contribution> = {};
+  let chart = emptyChart();
+  for (const key of Object.keys(objects).sort()) {
+    const contribution = objects[key];
+    sorted[key] = contribution;
+    chart = applyContribution(chart, null, contribution, updatedAt ?? "");
+  }
+  chart = { ...chart, updatedAt };
+  const pub = toPublic(chart);
+  return { version: 1, ...pub, objects: sorted };
+}
+
+function parseContribution(value: unknown): Contribution | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<Contribution>;
+  if (typeof record.etag !== "string" || record.etag.length === 0) return null;
+  if (typeof record.uploadedMs !== "number" || !Number.isFinite(record.uploadedMs)) return null;
+  if (
+    record.fps !== null &&
+    (typeof record.fps !== "number" || !Number.isFinite(record.fps) || record.fps <= 0)
+  ) {
+    return null;
+  }
+  if (!record.frames || typeof record.frames !== "object") return null;
+  const frames = emptyFrames();
+  for (const level of WORLD_LEVELS) {
+    const count = record.frames[level];
+    if (typeof count !== "number" || !Number.isFinite(count) || count < 0) return null;
+    frames[level] = count;
+  }
+  return { etag: record.etag, uploadedMs: record.uploadedMs, frames, fps: record.fps ?? null };
 }
 
 export function toPublic(state: ChartState): PublicChart {

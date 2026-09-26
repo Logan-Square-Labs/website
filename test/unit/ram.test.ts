@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { applyContribution, emptyChart, formatValue, shouldReplace, toPublic, type Contribution } from "../../src/chart";
+import {
+  applyContribution,
+  applyUpload,
+  emptyChart,
+  emptyDocument,
+  formatValue,
+  parseCoverageDocument,
+  shouldReplace,
+  toPublic,
+  type Contribution,
+} from "../../src/chart";
+import { COVERAGE_KEY } from "../../src/coverage";
 import {
   actionsKeyFor,
   countWorldLevels,
@@ -116,5 +127,53 @@ describe("aggregate", () => {
     expect(shouldReplace(first, first)).toBe(false);
     expect(shouldReplace(second, first)).toBe(false);
     expect(shouldReplace(first, second)).toBe(true);
+  });
+});
+
+const SML2_KEY =
+  "raw/skyemu/Super_Mario_Land_2_-_6_Golden_Coins_USA_Europe.41aaad9a-38fa-4246-b168-c6e345efc016.0001.ram.bin.gz";
+
+describe("coverage document", () => {
+  function contribution(etag: string, level: "1-1" | "4-1", frames: number): Contribution {
+    const counts = emptyFrames();
+    counts[level] = frames;
+    return { etag, uploadedMs: 1, frames: counts, fps: 60 };
+  }
+
+  it("does not double-count a retried upload of the same object", () => {
+    const uploaded = contribution("abc", "1-1", 60);
+    const once = applyUpload(emptyDocument(), SML_RAM_KEY, uploaded, "2026-09-26T00:00:00.000Z");
+    const twice = applyUpload(once, SML_RAM_KEY, uploaded, "2026-09-26T00:01:00.000Z");
+    expect(twice).toBe(once);
+    expect(once.objects[SML_RAM_KEY]?.etag).toBe("abc");
+    expect(once.levels.find((level) => level.level === "1-1")).toMatchObject({ value: 1, label: "1.0" });
+    expect(parseCoverageDocument(JSON.parse(JSON.stringify(once)))).toEqual(once);
+  });
+
+  it("replaces the previous contribution when the same object is uploaded again", () => {
+    const first = applyUpload(
+      emptyDocument(),
+      SML_RAM_KEY,
+      contribution("abc", "1-1", 60),
+      "2026-09-26T00:00:00.000Z",
+    );
+    const replaced = applyUpload(
+      first,
+      SML_RAM_KEY,
+      contribution("def", "4-1", 120),
+      "2026-09-26T00:01:00.000Z",
+    );
+    expect(replaced.levels.find((level) => level.level === "1-1")?.value).toBe(0);
+    expect(replaced.levels.find((level) => level.level === "4-1")?.value).toBe(2);
+    expect(Object.keys(replaced.objects)).toEqual([SML_RAM_KEY]);
+  });
+
+  it("skips Super Mario Land 2", () => {
+    expect(isSuperMarioLandRamKey(SML2_KEY)).toBe(false);
+    const doc = emptyDocument();
+    const next = applyUpload(doc, SML2_KEY, contribution("abc", "1-1", 60), "2026-09-26T00:00:00.000Z");
+    expect(next).toBe(doc);
+    expect(next.levels.every((level) => level.value === 0)).toBe(true);
+    expect(COVERAGE_KEY.startsWith("raw/skyemu/")).toBe(false);
   });
 });

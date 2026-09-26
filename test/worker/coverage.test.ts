@@ -1,7 +1,9 @@
 import { reset } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
+import { COVERAGE_KEY } from "../../src/coverage";
 import { consumeCoverageMessage, type CoverageMessage } from "../../src/index";
+import { normalizeEtag } from "../../src/ram";
 import { actionsMeta, concatSnapshots, gzipBytes, SML_RAM_KEY } from "../helpers";
 
 const SML2_KEY =
@@ -70,6 +72,23 @@ describe("upload aggregation", () => {
     expect(threeTwo?.value).toBe(Math.round(1000 / 60) / 1000);
     expect(oneOne?.label).toBe("0.033");
     expect(threeTwo?.label).toBe("0.017");
+
+    const stored = await env.DATASETS.get(COVERAGE_KEY);
+    expect(stored).not.toBeNull();
+    expect(COVERAGE_KEY.startsWith("raw/skyemu/")).toBe(false);
+    const document = await stored!.json<{
+      levels: { level: string; value: number }[];
+      objects: Record<string, { etag: string }>;
+    }>();
+    expect(document.objects[SML_RAM_KEY]?.etag).toBe(normalizeEtag(etag));
+    expect(document.levels).toEqual(chart.levels);
+    expect(chart).not.toHaveProperty("objects");
+
+    const before = await env.DATASETS.head(COVERAGE_KEY);
+    const third = message(SML_RAM_KEY, etag);
+    await consumeCoverageMessage(env, third);
+    const after = await env.DATASETS.head(COVERAGE_KEY);
+    expect(after?.etag).toBe(before?.etag);
   });
 
   it("replaces totals when the same object is uploaded again", async () => {
@@ -95,6 +114,7 @@ describe("upload aggregation", () => {
       await exports.default.fetch("https://logansquarelabs.com/api/gameplay")
     ).json<{ levels: { value: number }[] }>();
     expect(chart.levels.every((level) => level.value === 0)).toBe(true);
+    expect(await env.DATASETS.head(COVERAGE_KEY)).toBeNull();
   });
 
   it("acks a truncated ram object without retrying", async () => {
@@ -120,17 +140,5 @@ describe("upload aggregation", () => {
     expect(html).toContain(">2<");
     expect(html).toContain('src="/gameplay.js"');
     expect(html).toContain('href="/style.css"');
-  });
-
-  it("backfill is idempotent", async () => {
-    await putRam(SML_RAM_KEY, [0x22], 60);
-    const id = env.GAMEPLAY_COVERAGE.idFromName("super-mario-land");
-    const stub = env.GAMEPLAY_COVERAGE.get(id);
-    const first = await stub.backfill();
-    const second = await stub.backfill();
-    expect(first.updated).toBe(1);
-    expect(second.updated).toBe(0);
-    const chart = await stub.chart();
-    expect(chart.levels.find((level) => level.level === "2-2")?.value).toBe(Math.round(1000 / 60) / 1000);
   });
 });

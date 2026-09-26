@@ -1,7 +1,5 @@
-import { coverageStub, GameplayCoverage } from "./coverage";
+import { ingestObject, readChart } from "./coverage";
 import { renderGameplayPage } from "./page";
-
-export { GameplayCoverage };
 
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
@@ -47,7 +45,7 @@ export async function consumeCoverageMessage(
     return;
   }
   try {
-    const result = await coverageStub(env).ingest(notice.key, notice.etag);
+    const result = await ingestObject(env.DATASETS, notice.key, notice.etag);
     if (result.status === "updated") {
       console.log(JSON.stringify({ message: "coverage updated", key: notice.key }));
     } else if (result.status === "permanent") {
@@ -89,11 +87,11 @@ export default {
     }
     try {
       if (url.pathname === "/api/gameplay" || url.pathname === "/api/gameplay/") {
-        const chart = await coverageStub(env).chart();
+        const chart = await readChart(env.DATASETS);
         return json(chart);
       }
       if (url.pathname === "/gameplay" || url.pathname === "/gameplay/") {
-        const chart = await coverageStub(env).chart();
+        const chart = await readChart(env.DATASETS);
         const headers = {
           ...SECURITY_HEADERS,
           "Content-Type": "text/html; charset=utf-8",
@@ -117,19 +115,6 @@ export default {
   async queue(batch, env): Promise<void> {
     for (const message of batch.messages) {
       await consumeCoverageMessage(env, message);
-    }
-  },
-
-  async scheduled(_controller, env): Promise<void> {
-    const result = await coverageStub(env).backfill();
-    if (result.updated > 0) {
-      console.log(
-        JSON.stringify({
-          message: "coverage backfill",
-          updated: result.updated,
-          done: result.done,
-        }),
-      );
     }
   },
 } satisfies ExportedHandler<Env>;
