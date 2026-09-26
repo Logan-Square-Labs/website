@@ -1,5 +1,13 @@
+import { DurableObject } from "cloudflare:workers";
 import { ingestObject, readChart } from "./coverage";
 import { renderGameplayPage } from "./page";
+
+/**
+ * The v1 migration already created this class in production. Versions upload
+ * rejects a script that drops it, and deleting it needs `wrangler deploy`.
+ * Nothing binds this class, and the chart page does not call it.
+ */
+export class GameplayCoverage extends DurableObject<Env> {}
 
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",

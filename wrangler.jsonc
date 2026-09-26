@@ -51,16 +51,13 @@
       }
     ]
   },
-  // v1 already ran in production and created the chart Durable Object.
-  // v2 deletes that class. The applied v1 tag has to stay in this list.
+  // v1 already ran in production. Deleting the class is a new migration, and
+  // `wrangler versions upload` cannot apply one. The class stays exported and
+  // unbound so an upload matches the migration that already ran.
   "migrations": [
     {
       "tag": "v1-gameplay-coverage",
       "new_sqlite_classes": ["GameplayCoverage"]
-    },
-    {
-      "tag": "v2-remove-gameplay-coverage",
-      "deleted_classes": ["GameplayCoverage"]
     }
   ]
 }
