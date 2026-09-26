@@ -118,8 +118,12 @@ p {
 }
 
 .tagline {
-  margin: 0;
+  margin: 0 0 1rem;
   color: var(--muted);
+}
+
+.tagline:last-child {
+  margin-bottom: 0;
 }
 
 .principles {
