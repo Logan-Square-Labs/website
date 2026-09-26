@@ -1,0 +1,71 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "website",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    }
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash",
+    // The chart page and its JSON are rendered by the Worker. Everything else
+    // stays a static asset.
+    "run_worker_first": ["/gameplay", "/gameplay/", "/api/*"]
+  },
+  "r2_buckets": [
+    {
+      "binding": "DATASETS",
+      "bucket_name": "datasets"
+    }
+  ],
+  // Object-create notifications for raw/skyemu/ are delivered to this queue.
+  // Create them once per account (they are not expressed in this file):
+  //   npx wrangler queues create website-sml-coverage
+  //   npx wrangler r2 bucket notification create datasets \
+  //     --event-type object-create \
+  //     --queue website-sml-coverage \
+  //     --prefix raw/skyemu/
+  "queues": {
+    "consumers": [
+      {
+        "queue": "website-sml-coverage",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 3,
+        "max_concurrency": 1
+      }
+    ]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GAMEPLAY_COVERAGE",
+        "class_name": "GameplayCoverage"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-gameplay-coverage",
+      "new_sqlite_classes": ["GameplayCoverage"]
+    }
+  ],
+  // Catches recordings already in the bucket, and any create the queue missed.
+  // Re-reading an object with the same etag does not change the totals.
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
+}
