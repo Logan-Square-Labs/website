@@ -1,7 +1,9 @@
 import { reset } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
+import { COVERAGE_KEY } from "../../src/coverage";
 import { consumeCoverageMessage, type CoverageMessage } from "../../src/index";
+import { normalizeEtag } from "../../src/ram";
 import { actionsMeta, concatSnapshots, gzipBytes, SML_RAM_KEY } from "../helpers";
 
 const SML2_KEY =
@@ -33,6 +35,24 @@ function message(key: string, etag: string, attempts = 1): CoverageMessage & { a
   return record;
 }
 
+async function gameplayPage(): Promise<{ html: string; headers: Headers }> {
+  const page = await exports.default.fetch("https://logansquarelabs.com/gameplay/");
+  expect(page.status).toBe(200);
+  expect(page.headers.get("content-type")).toContain("text/html");
+  const html = await page.text();
+  expect(html).not.toContain("<script");
+  expect(html).not.toContain("/api/gameplay");
+  expect(html).not.toContain("gameplay.js");
+  expect(html).not.toMatch(/datasets|website-sml-coverage|raw\/skyemu|CLOUDFLARE|Bearer/i);
+  return { html, headers: page.headers };
+}
+
+function row(html: string, level: string): string {
+  const match = new RegExp(`<li data-level="${level}">[\\s\\S]*?</li>`).exec(html);
+  expect(match, level).not.toBeNull();
+  return match?.[0] ?? "";
+}
+
 async function putRam(key: string, worldBytes: number[], fps: number | null): Promise<string> {
   const gzipped = await gzipBytes(concatSnapshots(worldBytes));
   const stored = await env.DATASETS.put(key, gzipped);
@@ -55,21 +75,29 @@ describe("upload aggregation", () => {
     expect(second.acked).toBe(true);
     expect(second.retried).toBe(false);
 
-    const response = await exports.default.fetch("https://logansquarelabs.com/api/gameplay");
-    expect(response.status).toBe(200);
-    const chart = await response.json<{
-      unit: string;
-      unitLabel: string;
+    const { html } = await gameplayPage();
+    expect(html).toContain("Seconds recorded");
+    expect(row(html, "1-1")).toContain('data-pct="100"');
+    expect(row(html, "1-1")).toContain(">0.033<");
+    expect(row(html, "3-2")).toContain('data-pct="52"');
+    expect(row(html, "3-2")).toContain(">0.017<");
+
+    const stored = await env.DATASETS.get(COVERAGE_KEY);
+    expect(stored).not.toBeNull();
+    expect(COVERAGE_KEY.startsWith("raw/skyemu/")).toBe(false);
+    const document = await stored!.json<{
       levels: { level: string; value: number; label: string }[];
+      objects: Record<string, { etag: string }>;
     }>();
-    expect(chart.unit).toBe("seconds");
-    expect(chart.unitLabel).toBe("Seconds recorded");
-    const oneOne = chart.levels.find((level) => level.level === "1-1");
-    const threeTwo = chart.levels.find((level) => level.level === "3-2");
-    expect(oneOne?.value).toBe(Math.round(2000 / 60) / 1000);
-    expect(threeTwo?.value).toBe(Math.round(1000 / 60) / 1000);
-    expect(oneOne?.label).toBe("0.033");
-    expect(threeTwo?.label).toBe("0.017");
+    expect(document.objects[SML_RAM_KEY]?.etag).toBe(normalizeEtag(etag));
+    expect(document.levels.find((level) => level.level === "1-1")?.value).toBe(Math.round(2000 / 60) / 1000);
+    expect(document.levels.find((level) => level.level === "3-2")?.label).toBe("0.017");
+
+    const before = await env.DATASETS.head(COVERAGE_KEY);
+    const third = message(SML_RAM_KEY, etag);
+    await consumeCoverageMessage(env, third);
+    const after = await env.DATASETS.head(COVERAGE_KEY);
+    expect(after?.etag).toBe(before?.etag);
   });
 
   it("replaces totals when the same object is uploaded again", async () => {
@@ -79,11 +107,11 @@ describe("upload aggregation", () => {
     expect(secondEtag).not.toBe(firstEtag);
     await consumeCoverageMessage(env, message(SML_RAM_KEY, secondEtag));
 
-    const chart = await (
-      await exports.default.fetch("https://logansquarelabs.com/api/gameplay")
-    ).json<{ levels: { level: string; value: number }[] }>();
-    expect(chart.levels.find((level) => level.level === "1-1")?.value).toBe(0);
-    expect(chart.levels.find((level) => level.level === "4-1")?.value).toBe(Math.round(2000 / 60) / 1000);
+    const { html } = await gameplayPage();
+    expect(row(html, "1-1")).toContain('data-pct="0"');
+    expect(row(html, "1-1")).toContain(">0.0<");
+    expect(row(html, "4-1")).toContain('data-pct="100"');
+    expect(row(html, "4-1")).toContain(">0.033<");
   });
 
   it("ignores Super Mario Land 2 recordings", async () => {
@@ -91,10 +119,10 @@ describe("upload aggregation", () => {
     const notice = message(SML2_KEY, etag);
     await consumeCoverageMessage(env, notice);
     expect(notice.acked).toBe(true);
-    const chart = await (
-      await exports.default.fetch("https://logansquarelabs.com/api/gameplay")
-    ).json<{ levels: { value: number }[] }>();
-    expect(chart.levels.every((level) => level.value === 0)).toBe(true);
+    const { html } = await gameplayPage();
+    expect(html).toContain('data-pct="0"');
+    expect(html).not.toMatch(/data-pct="(?!0")/);
+    expect(await env.DATASETS.head(COVERAGE_KEY)).toBeNull();
   });
 
   it("acks a truncated ram object without retrying", async () => {
@@ -110,27 +138,14 @@ describe("upload aggregation", () => {
   it("renders the chart in the site page and falls back to frames without timing", async () => {
     const etag = await putRam(SML_RAM_KEY, [0x13, 0x13], null);
     await consumeCoverageMessage(env, message(SML_RAM_KEY, etag));
-    const page = await exports.default.fetch("https://logansquarelabs.com/gameplay/");
-    expect(page.status).toBe(200);
-    expect(page.headers.get("content-type")).toContain("text/html");
-    expect(page.headers.get("content-security-policy")).toContain("script-src 'self'");
-    const html = await page.text();
+    const { html, headers } = await gameplayPage();
+    expect(headers.get("content-security-policy")).toContain("script-src 'none'");
+    expect(headers.get("content-security-policy")).toContain("connect-src 'none'");
     expect(html).toContain("Frames recorded");
-    expect(html).toContain('data-level="1-3"');
-    expect(html).toContain(">2<");
-    expect(html).toContain('src="/gameplay.js"');
+    expect(row(html, "1-3")).toContain('data-pct="100"');
+    expect(row(html, "1-3")).toContain(">2<");
     expect(html).toContain('href="/style.css"');
-  });
-
-  it("backfill is idempotent", async () => {
-    await putRam(SML_RAM_KEY, [0x22], 60);
-    const id = env.GAMEPLAY_COVERAGE.idFromName("super-mario-land");
-    const stub = env.GAMEPLAY_COVERAGE.get(id);
-    const first = await stub.backfill();
-    const second = await stub.backfill();
-    expect(first.updated).toBe(1);
-    expect(second.updated).toBe(0);
-    const chart = await stub.chart();
-    expect(chart.levels.find((level) => level.level === "2-2")?.value).toBe(Math.round(1000 / 60) / 1000);
+    const api = await exports.default.fetch("https://logansquarelabs.com/api/gameplay");
+    expect(api.status).toBe(404);
   });
 });

@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "check": "wrangler types --check && tsc --noEmit && tsc --noEmit -p test/tsconfig.json",
+    "check": "wrangler types --check && tsc --noEmit && tsc --noEmit -p test/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
     "test": "vitest run --config vitest.unit.config.ts && vitest run",
     "types": "wrangler types"
   },
