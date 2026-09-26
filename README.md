@@ -10,7 +10,6 @@ exception: the Worker renders it and keeps the totals up to date.
 public/              # static assets
   index.html         # homepage           -> /
   posts/index.html   # post index         -> /posts/
-  gameplay.js        # refreshes the chart while it is open
   404.html           # served for unmatched paths
   style.css          # the only stylesheet
   favicon.svg
@@ -35,8 +34,9 @@ frames so the unit stays one thing. The axis label is "Seconds recorded" or
 "Frames recorded".
 
 The totals the chart shows are one JSON object, `website/super-mario-land-gameplay.json`,
-in the same bucket. That key is outside `raw/skyemu/`. `/gameplay/` and
-`/api/gameplay` read the object and render it. They do not scan recordings.
+in the same bucket. That key is outside `raw/skyemu/`. The Worker reads it and
+writes the bars into the `/gameplay/` HTML. The browser gets that page and the
+stylesheet. It does not receive the JSON, and it does not call an API.
 
 New objects under `raw/skyemu/` publish an R2 `object-create` notification to the
 `website-sml-coverage` queue. The consumer (one at a time) decodes a Super Mario
@@ -52,7 +52,7 @@ CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... \
   npx tsx scripts/seed-gameplay-coverage.ts
 ```
 
-The open page polls `/api/gameplay` and updates the bars without a reload.
+A refresh loads the page again. There is no client script and no chart API.
 
 Create the queue and notification once, then deploy:
 

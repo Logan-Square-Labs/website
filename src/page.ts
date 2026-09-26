@@ -50,9 +50,9 @@ export function renderGameplayPage(chart: PublicChart): string {
   <main>
     <h1>Super Mario Land</h1>
     <p class="tagline">Recorded gameplay by world-level.</p>
-    <figure class="chart" data-coverage>
+    <figure class="chart">
       <figcaption>${escapeHtml(chart.unitLabel)}</figcaption>
-      <ul class="bars" aria-live="polite">
+      <ul class="bars">
         ${rows}
       </ul>
     </figure>
@@ -62,7 +62,6 @@ export function renderGameplayPage(chart: PublicChart): string {
     <span>&copy; 2026 Logan Square Labs</span>
     <a href="https://github.com/Logan-Square-Labs">GitHub</a>
   </footer>
-  <script src="/gameplay.js" defer></script>
 </body>
 </html>
 `;

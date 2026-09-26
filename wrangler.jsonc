@@ -21,9 +21,9 @@
     "binding": "ASSETS",
     "not_found_handling": "404-page",
     "html_handling": "auto-trailing-slash",
-    // The chart page and its JSON are rendered by the Worker. Everything else
-    // stays a static asset.
-    "run_worker_first": ["/gameplay", "/gameplay/", "/api/*"]
+    // The chart page is HTML rendered by the Worker. Everything else stays
+    // a static asset.
+    "run_worker_first": ["/gameplay", "/gameplay/"]
   },
   "r2_buckets": [
     {

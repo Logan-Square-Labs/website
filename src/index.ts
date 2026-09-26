@@ -6,7 +6,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "geolocation=(), camera=(), microphone=()",
   "Content-Security-Policy":
-    "default-src 'self'; style-src 'self'; img-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "default-src 'self'; style-src 'self'; img-src 'self'; script-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   "Cache-Control": "no-store",
 };
 
@@ -72,10 +72,6 @@ export async function consumeCoverageMessage(
   }
 }
 
-function json(body: unknown, status = 200): Response {
-  return Response.json(body, { status, headers: SECURITY_HEADERS });
-}
-
 export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
@@ -86,10 +82,6 @@ export default {
       });
     }
     try {
-      if (url.pathname === "/api/gameplay" || url.pathname === "/api/gameplay/") {
-        const chart = await readChart(env.DATASETS);
-        return json(chart);
-      }
       if (url.pathname === "/gameplay" || url.pathname === "/gameplay/") {
         const chart = await readChart(env.DATASETS);
         const headers = {
