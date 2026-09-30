@@ -10,8 +10,5 @@
 /favicon.svg
   Cache-Control: public, max-age=86400
 
-/gameplay.js
-  Cache-Control: public, max-age=300
-
 https://:version.:subdomain.workers.dev/*
   X-Robots-Tag: noindex

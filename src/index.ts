@@ -1,14 +1,20 @@
-import { coverageStub, GameplayCoverage } from "./coverage";
+import { DurableObject } from "cloudflare:workers";
+import { ingestObject, readChart } from "./coverage";
 import { renderGameplayPage } from "./page";
 
-export { GameplayCoverage };
+/**
+ * The v1 migration already created this class in production. Versions upload
+ * rejects a script that drops it, and deleting it needs `wrangler deploy`.
+ * Nothing binds this class, and the chart page does not call it.
+ */
+export class GameplayCoverage extends DurableObject<Env> {}
 
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "geolocation=(), camera=(), microphone=()",
   "Content-Security-Policy":
-    "default-src 'self'; style-src 'self'; img-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "default-src 'self'; style-src 'self'; img-src 'self'; script-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   "Cache-Control": "no-store",
 };
 
@@ -47,7 +53,7 @@ export async function consumeCoverageMessage(
     return;
   }
   try {
-    const result = await coverageStub(env).ingest(notice.key, notice.etag);
+    const result = await ingestObject(env.DATASETS, notice.key, notice.etag);
     if (result.status === "updated") {
       console.log(JSON.stringify({ message: "coverage updated", key: notice.key }));
     } else if (result.status === "permanent") {
@@ -74,10 +80,6 @@ export async function consumeCoverageMessage(
   }
 }
 
-function json(body: unknown, status = 200): Response {
-  return Response.json(body, { status, headers: SECURITY_HEADERS });
-}
-
 export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
@@ -88,12 +90,8 @@ export default {
       });
     }
     try {
-      if (url.pathname === "/api/gameplay" || url.pathname === "/api/gameplay/") {
-        const chart = await coverageStub(env).chart();
-        return json(chart);
-      }
       if (url.pathname === "/gameplay" || url.pathname === "/gameplay/") {
-        const chart = await coverageStub(env).chart();
+        const chart = await readChart(env.DATASETS);
         const headers = {
           ...SECURITY_HEADERS,
           "Content-Type": "text/html; charset=utf-8",
@@ -117,19 +115,6 @@ export default {
   async queue(batch, env): Promise<void> {
     for (const message of batch.messages) {
       await consumeCoverageMessage(env, message);
-    }
-  },
-
-  async scheduled(_controller, env): Promise<void> {
-    const result = await coverageStub(env).backfill();
-    if (result.updated > 0) {
-      console.log(
-        JSON.stringify({
-          message: "coverage backfill",
-          updated: result.updated,
-          done: result.done,
-        }),
-      );
     }
   },
 } satisfies ExportedHandler<Env>;

@@ -21,9 +21,9 @@
     "binding": "ASSETS",
     "not_found_handling": "404-page",
     "html_handling": "auto-trailing-slash",
-    // The chart page and its JSON are rendered by the Worker. Everything else
-    // stays a static asset.
-    "run_worker_first": ["/gameplay", "/gameplay/", "/api/*"]
+    // The chart page is HTML rendered by the Worker. Everything else stays
+    // a static asset.
+    "run_worker_first": ["/gameplay", "/gameplay/"]
   },
   "r2_buckets": [
     {
@@ -32,7 +32,9 @@
     }
   ],
   // Object-create notifications for raw/skyemu/ are delivered to this queue.
-  // Create them once per account (they are not expressed in this file):
+  // The consumer writes website/super-mario-land-gameplay.json, which is
+  // outside that prefix so the write cannot notify the queue again.
+  // Create the queue and notification once per account (not expressed here):
   //   npx wrangler queues create website-sml-coverage
   //   npx wrangler r2 bucket notification create datasets \
   //     --event-type object-create \
@@ -49,23 +51,13 @@
       }
     ]
   },
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "GAMEPLAY_COVERAGE",
-        "class_name": "GameplayCoverage"
-      }
-    ]
-  },
+  // v1 already ran in production. Deleting the class is a new migration, and
+  // `wrangler versions upload` cannot apply one. The class stays exported and
+  // unbound so an upload matches the migration that already ran.
   "migrations": [
     {
       "tag": "v1-gameplay-coverage",
       "new_sqlite_classes": ["GameplayCoverage"]
     }
-  ],
-  // Catches recordings already in the bucket, and any create the queue missed.
-  // Re-reading an object with the same etag does not change the totals.
-  "triggers": {
-    "crons": ["*/5 * * * *"]
-  }
+  ]
 }

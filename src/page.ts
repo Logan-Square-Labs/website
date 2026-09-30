@@ -1,4 +1,4 @@
-import { barPercent, type PublicChart } from "./chart";
+import { barPercent, formatValue, type PublicChart } from "./chart";
 
 function escapeHtml(value: string): string {
   return value
@@ -13,10 +13,11 @@ export function renderGameplayPage(chart: PublicChart): string {
   const rows = chart.levels
     .map((level) => {
       const pct = barPercent(level.value, max);
+      const label = formatValue(level.value, chart.unit);
       return `<li data-level="${level.level}">
           <span class="bar-label">${level.level}</span>
           <span class="bar-track"><span class="bar-fill" data-pct="${pct}"></span></span>
-          <span class="bar-value">${escapeHtml(level.label)}</span>
+          <span class="bar-value">${escapeHtml(label)}</span>
         </li>`;
     })
     .join("\n");
@@ -50,9 +51,9 @@ export function renderGameplayPage(chart: PublicChart): string {
   <main>
     <h1>Super Mario Land</h1>
     <p class="tagline">Recorded gameplay by world-level.</p>
-    <figure class="chart" data-coverage>
+    <figure class="chart">
       <figcaption>${escapeHtml(chart.unitLabel)}</figcaption>
-      <ul class="bars" aria-live="polite">
+      <ul class="bars">
         ${rows}
       </ul>
     </figure>
@@ -62,7 +63,6 @@ export function renderGameplayPage(chart: PublicChart): string {
     <span>&copy; 2026 Logan Square Labs</span>
     <a href="https://github.com/Logan-Square-Labs">GitHub</a>
   </footer>
-  <script src="/gameplay.js" defer></script>
 </body>
 </html>
 `;
