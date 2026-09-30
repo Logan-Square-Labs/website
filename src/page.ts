@@ -1,4 +1,4 @@
-import { barPercent, type PublicChart } from "./chart";
+import { barPercent, formatValue, type PublicChart } from "./chart";
 
 function escapeHtml(value: string): string {
   return value
@@ -13,10 +13,11 @@ export function renderGameplayPage(chart: PublicChart): string {
   const rows = chart.levels
     .map((level) => {
       const pct = barPercent(level.value, max);
+      const label = formatValue(level.value, chart.unit);
       return `<li data-level="${level.level}">
           <span class="bar-label">${level.level}</span>
           <span class="bar-track"><span class="bar-fill" data-pct="${pct}"></span></span>
-          <span class="bar-value">${escapeHtml(level.label)}</span>
+          <span class="bar-value">${escapeHtml(label)}</span>
         </li>`;
     })
     .join("\n");

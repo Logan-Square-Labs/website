@@ -65,10 +65,18 @@ export function shouldReplace(
   return true;
 }
 
+export function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.round(Number.isFinite(seconds) ? seconds : 0));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
+}
+
 export function formatValue(value: number, unit: PublicChart["unit"]): string {
-  if (unit === "frames") return String(Math.max(0, Math.round(value)));
-  const text = value.toFixed(3).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-  return text.includes(".") ? text : `${text}.0`;
+  if (unit === "frames") return String(Math.max(0, Math.round(Number.isFinite(value) ? value : 0)));
+  return formatClock(value);
 }
 
 export function barPercent(value: number, max: number): number {

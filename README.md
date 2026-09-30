@@ -29,9 +29,11 @@ RAM byte `0xFFB4`, using the same mapping as the Super Mario Land decoder in the
 research repo (`SkyEmu/ram_maps/super_mario_land.yaml`).
 
 When the matching `*.actions.jsonl` meta includes `fps`, the bars are seconds
-(`frames / fps`). If any counted recording has no frame rate, the axis switches to
-frames so the unit stays one thing. The axis label is "Seconds recorded" or
-"Frames recorded".
+(`frames / fps`). Each bar label is that duration rounded to the nearest second
+and written as zero-padded `HH:MM:SS` (hours may pass 24). The bar width uses
+the unrounded seconds. If any counted recording has no frame rate, the axis
+switches to frames so the unit stays one thing. The axis label is "Seconds
+recorded" or "Frames recorded".
 
 The totals the chart shows are one JSON object, `website/super-mario-land-gameplay.json`,
 in the same bucket. That key is outside `raw/skyemu/`. The Worker reads it and

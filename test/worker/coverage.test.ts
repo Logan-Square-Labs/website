@@ -78,9 +78,9 @@ describe("upload aggregation", () => {
     const { html } = await gameplayPage();
     expect(html).toContain("Seconds recorded");
     expect(row(html, "1-1")).toContain('data-pct="100"');
-    expect(row(html, "1-1")).toContain(">0.033<");
+    expect(row(html, "1-1")).toContain(">00:00:00<");
     expect(row(html, "3-2")).toContain('data-pct="52"');
-    expect(row(html, "3-2")).toContain(">0.017<");
+    expect(row(html, "3-2")).toContain(">00:00:00<");
 
     const stored = await env.DATASETS.get(COVERAGE_KEY);
     expect(stored).not.toBeNull();
@@ -91,7 +91,7 @@ describe("upload aggregation", () => {
     }>();
     expect(document.objects[SML_RAM_KEY]?.etag).toBe(normalizeEtag(etag));
     expect(document.levels.find((level) => level.level === "1-1")?.value).toBe(Math.round(2000 / 60) / 1000);
-    expect(document.levels.find((level) => level.level === "3-2")?.label).toBe("0.017");
+    expect(document.levels.find((level) => level.level === "3-2")?.label).toBe("00:00:00");
 
     const before = await env.DATASETS.head(COVERAGE_KEY);
     const third = message(SML_RAM_KEY, etag);
@@ -109,9 +109,9 @@ describe("upload aggregation", () => {
 
     const { html } = await gameplayPage();
     expect(row(html, "1-1")).toContain('data-pct="0"');
-    expect(row(html, "1-1")).toContain(">0.0<");
+    expect(row(html, "1-1")).toContain(">00:00:00<");
     expect(row(html, "4-1")).toContain('data-pct="100"');
-    expect(row(html, "4-1")).toContain(">0.033<");
+    expect(row(html, "4-1")).toContain(">00:00:00<");
   });
 
   it("ignores Super Mario Land 2 recordings", async () => {

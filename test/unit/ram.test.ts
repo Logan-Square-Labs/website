@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { renderGameplayPage } from "../../src/page";
 import {
   applyContribution,
   applyUpload,
   emptyChart,
   emptyDocument,
+  formatClock,
   formatValue,
   parseCoverageDocument,
   shouldReplace,
@@ -103,8 +105,27 @@ describe("aggregate", () => {
     const pub = toPublic(chart);
     expect(pub.unit).toBe("seconds");
     expect(pub.unitLabel).toBe("Seconds recorded");
-    expect(pub.levels.find((level) => level.level === "1-1")).toMatchObject({ value: 1, label: "1.0" });
-    expect(formatValue(1 / 60, "seconds")).toBe("0.017");
+    expect(pub.levels.find((level) => level.level === "1-1")).toMatchObject({ value: 1, label: "00:00:01" });
+    expect(formatValue(1 / 60, "seconds")).toBe("00:00:00");
+    expect(formatClock(0)).toBe("00:00:00");
+    expect(formatClock(1440.451)).toBe("00:24:00");
+    expect(formatClock(25 * 3600)).toBe("25:00:00");
+    const html = renderGameplayPage({
+      game: "super_mario_land",
+      unit: "seconds",
+      unitLabel: "Seconds recorded",
+      updatedAt: null,
+      levels: [
+        { level: "1-1", value: 1440.451, label: "1440.451" },
+        { level: "1-2", value: 0, label: "0.0" },
+      ],
+    });
+    expect(html).toContain(">00:24:00<");
+    expect(html).toContain(">00:00:00<");
+    expect(html).not.toContain("1440.451");
+    expect(html).not.toContain("<script");
+    expect(html).toMatch(/data-level="1-1"[\s\S]*?data-pct="100"/);
+    expect(html).toMatch(/data-level="1-2"[\s\S]*?data-pct="0"/);
   });
 
   it("switches the whole chart to frames when any object has no timing", () => {
@@ -146,7 +167,7 @@ describe("coverage document", () => {
     const twice = applyUpload(once, SML_RAM_KEY, uploaded, "2026-09-26T00:01:00.000Z");
     expect(twice).toBe(once);
     expect(once.objects[SML_RAM_KEY]?.etag).toBe("abc");
-    expect(once.levels.find((level) => level.level === "1-1")).toMatchObject({ value: 1, label: "1.0" });
+    expect(once.levels.find((level) => level.level === "1-1")).toMatchObject({ value: 1, label: "00:00:01" });
     expect(parseCoverageDocument(JSON.parse(JSON.stringify(once)))).toEqual(once);
   });
 
